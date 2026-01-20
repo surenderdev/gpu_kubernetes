@@ -1,1 +1,59 @@
+name: Deployment Workflow
+on:
+  push:
+    branches:
+      # - "Staging"
+      - "dev"
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+    outputs:
+      AZURE_CONTAINER_REGISTRY:
+        value: ${{ jobs.calling_common_config.outputs.op_AZURE_CONTAINER_REGISTRY }}
+      RESOURCE_GROUP:
+        value: ${{ jobs.calling_common_config.outputs.op_RESOURCE_GROUP }}
+      CLUSTER_NAME:
+        value: ${{ jobs.calling_common_config.outputs.op_CLUSTER_NAME }}
+      CHART_PATH:
+        value: ${{ jobs.calling_common_config.outputs.op_CHART_PATH }}
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+jobs:
+  # Calling common config from master branch to provide environment specific varaibles for deployment 
+  calling_common_config:
+    runs-on: ubuntu-latest
+    
+    if: ${{ github.event_name == 'push'}}
+    outputs:
+      op_AZURE_CONTAINER_REGISTRY: ${{ steps.dev_vars.outputs.var_AZURE_CONTAINER_REGISTRY }}
+      op_RESOURCE_GROUP: ${{ steps.dev_vars.outputs.var_RESOURCE_GROUP }}
+      op_CLUSTER_NAME: ${{ steps.dev_vars.outputs.var_CLUSTER_NAME }}
+      op_CHART_PATH: ${{ steps.dev_vars.var_CHART_PATH }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      
+      - id: dev_vars
+        run: |
+          echo "var_AZURE_CONTAINER_REGISTRY=ngazeacrdev" >> $GITHUB_OUTPUT
+          echo "var_RESOURCE_GROUP=ngaze-rg-dev" >> $GITHUB_OUTPUT
+          echo "var_CLUSTER_NAME=ngaze-aks-dev" >> $GITHUB_OUTPUT
+          echo "var_CHART_PATH=opensource_ollama/helm-openmodel" >> $GITHUB_OUTPUT
+        
+# # ------------------- DEV DEPLOYMENTS START ------------------- 
+
+  # Deploying rfp
+  deploying_rfp_dev:
+    needs: calling_common_config
+    uses: Softpath-System-LLC/opensource_ollama/.github/workflows/openmodel-helm_workflow.yaml@dev
+    secrets: inherit
+    with:
+      AZURE_CONTAINER_REGISTRY: ${{ needs.calling_common_config.outputs.op_AZURE_CONTAINER_REGISTRY }}
+      RESOURCE_GROUP: ${{ needs.calling_common_config.outputs.op_RESOURCE_GROUP }}
+      CLUSTER_NAME: ${{ needs.calling_common_config.outputs.op_CLUSTER_NAME }}
+      CHART_PATH: ${{ needs.calling_common_config.outputs.op_CHART_PATH }}
+      branch: ${{ inputs.branch }}
+# # ------------------- DEV DEPLOYMENTS END ------------------- 
