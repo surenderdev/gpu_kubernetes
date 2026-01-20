@@ -1,0 +1,26 @@
+kind: VirtualService
+apiVersion: networking.istio.io/v1alpha3
+metadata:
+  name: {{ include "sample.name" . }}
+  namespace: {{ .Values.nameSpace }}
+spec:
+  hosts:
+    {{- toYaml .Values.spec.hosts | nindent 10 }}
+  gateways:
+    {{- toYaml .Values.spec.gateways | nindent 10 }}
+  http:
+  - headers:
+      request:
+        set:
+          host: {{ .Values.spec.host }}
+    # match:
+    #   - source:
+    #       ipBlocks:
+    #         - 182.82.96.40/32  # Allow camera IP
+    #     port: 554  # Allow traffic on port 554
+    route:
+    - destination:
+        host: {{ include "sample.name" . }}
+        port:
+          number: 80
+      

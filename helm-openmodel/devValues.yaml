@@ -1,0 +1,108 @@
+# Default values for sample.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+nameSpace: "dev"
+
+image:
+  #repository: ngazeacrdev.azurecr.io/openmodel
+  repository: ngazeacrdev.azurecr.io/openmodel-llama3-1-repo
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: llama3.1
+
+ #imagePullSecrets: []
+  #nameOverride: "frontend"
+  nameOverride: "openmodel-llama3-1"
+  #fullnameOverride: "openmodel-app"
+  fullnameOverride: "openmodel-llama3-1"
+
+ 
+
+# serviceAccount:
+#   # Specifies whether a service account should be created
+#   create: false
+#   # Annotations to add to the service account
+#   annotations: {}
+#   # The name of the service account to use.
+#   # If not set and create is true, a name is generated using the fullname template
+#   name: ""
+
+podAnnotations: {}
+
+
+#podSecurityContext: {}
+  # fsGroup: 2000
+
+#securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: LoadBalancer  # Changed from ClusterIP for external access
+  port: 80
+  protocol: TCP
+  #targetPort: 11434
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  host: openmodel-dev.ngaze.com  # Change this to your actual domain
+
+#resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+# containers:
+# - name: openmodel
+#   image: ollama/ollama
+#   volumeMounts:
+#     - name: shm
+#       mountPath: /dev/shm
+resources:
+  limits:
+    cpu: "12"
+    memory: "64Gi"
+    nvidia.com/gpu: 1
+  requests:
+    cpu: "6"
+    memory: "32Gi"
+    nvidia.com/gpu: 1
+ 
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+      
+# nodeSelector: {}
+# added new line for GPU
+#nodeSelector:
+  #agentpool: gpuspotwin
+  #kubernetes.io/os: windows
+
+# tolerations: []
+
+# affinity: {}
+
+spec:
+  hosts: 
+    - softpathopenmodel-dev.ngaze.com
+  gateways: 
+    - istio-system/ingress-gateway-configuration
+  host: 135.237.77.216

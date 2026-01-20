@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sample.name" . }}
+  namespace: {{ .Values.nameSpace }}
+  labels:
+    {{- include "sample.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  progressDeadlineSeconds: 2200
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sample.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sample.selectorLabels" . | nindent 8 }}
+    spec:
+      #terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: "kubernetes.azure.com/scalesetpriority"
+        operator: "Equal"
+        value: "spot"
+        effect: "NoSchedule"
+      nodeSelector:
+      #   node.kubernetes.io/instance-type: Standard_NC4as_T4_v3
+      #  new line added for GPU
+        agentpool: llm1gpuspot  # Use existing nodepool
+       # kubernetes.io/os: windows
+        #accelerator: nvidia  # Removed: nodes don't have this label
+        kubernetes.io/os: linux
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Gi
+        - name: ollama-data         
+          emptyDir: {} 
+      initContainers:
+        - name: pull-model
+          image: ngazeacrdev.azurecr.io/openmodel-llama3-1-repo:llama3.1
+          command: ["sh", "-c"]
+          args:
+            - |
+              ollama serve &
+              sleep 5
+              ollama pull llama3.1:latest
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:                 
+            - name: ollama-data
+              mountPath: /root/.ollama
+          #additional $10 price
+          #volumeMounts:
+            #- name: ollama-data
+              #mountPath: /root/.ollama
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # volumeMounts:                 
+          #   # - name: shm
+          #   #   mountPath: /dev/shm
+          #   - name: ollama-data
+          #     mountPath: /root/.ollama
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0"
+            - name: OLLAMA_NUM_CTX
+              value: "16384"
+            # JWT configuration from Kubernetes secrets
+            - name: JWT_OLLAMA_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: openmodel-secrets
+                  key: JWT_OLLAMA_SECRET
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: openmodel-secrets
+                  key: JWT_ISSUER
+          # new line added for GPU
+          resources:
+            limits:
+              #nvidia.com/gpu: 1
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+              nvidia.com/gpu: {{ index .Values.resources.limits "nvidia.com/gpu" }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+              nvidia.com/gpu: {{ index .Values.resources.requests "nvidia.com/gpu" }}
+            
+          #     nvidia.com/gpu: 1 # Requests 1 GPU
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: ollama-data
+              mountPath: /root/.ollama  
+          startupProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 180
+          readinessProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 180
+          livenessProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 180
+            periodSeconds: 20
+            failureThreshold: 120
